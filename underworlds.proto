@@ -1,0 +1,326 @@
+syntax = "proto3";
+
+package underworlds;
+
+service Underworlds {
+
+    // GENERAL
+
+    // Establish the connection to the server, setting a human-friendly name for
+    // the client.
+    // The server returns a unique client ID that must be used in every subsequent
+    // request to the server.
+    rpc helo(Name) returns (Client) {}
+
+    // Returns the uptime of the server, in seconds
+    rpc uptime(Client) returns (Time) {}
+
+    // Returns the current topology of underworlds: the list of worlds and the
+    // list of clients + their interactions with the worlds
+    rpc topology(Client) returns (Topology) {}
+
+    // Hard reset of Underworlds: all the worlds are deleted.
+    // The existing mesh database is kept, however.
+    // This does not impact the list of known clients (ie, clients do not have to
+    // call 'helo' again).
+    rpc reset(Client) returns (Empty) {}
+
+    // NODES
+
+    // Returns the number of nodes in a given world.
+    // 
+    // Accepts a context (client ID and world) and returns the number of existing nodes.
+    rpc getNodesLen(Context) returns (Size) {}
+
+    // Returns the list of node IDs present in the given world
+    rpc getNodesIds(Context) returns (Nodes) {}
+
+    // Returns the root node ID of the given world
+    rpc getRootNode(Context) returns (Node) {}
+
+    // Returns a node from its ID in the given world.
+    // Note that only the node ID is used (and thus, required).
+    rpc getNode(NodeInContext) returns (Node) {}
+
+    // Updates (and broadcasts to all client) a node in a given world
+    rpc updateNode(NodeInContext) returns (Empty) {}
+
+    // Deletes (and broadcasts to all client) a node in a given world
+    rpc deleteNode(NodeInContext) returns (Empty) {}
+
+    // Returns a (stream of) 'invalidated' nodes that need to be updated.
+    // Invalidated nodes can be new nodes, nodes that have changed, or nodes
+    // that have been removed (see Invalidation.type).
+    rpc getNodeInvalidations(Context) returns (stream NodeInvalidation) {}
+
+
+    // TIMELINE
+
+    // Returns the timeline origin: time of the timeline creation
+    rpc timelineOrigin(Context) returns (Time) {}
+
+    // Notifies the server that an event occured
+    rpc event(SituationInContext) returns (Empty) {}
+
+    // Notifies the server that a specific situation has started
+    rpc startSituation(SituationInContext) returns (Empty) {}
+
+    // Notifies the server that a specific situation has ended
+    rpc endSituation(SituationInContext) returns (Empty) {}
+
+    // Returns a (stream of) 'invalidated' nodes that need to be updated.
+    // Invalidated nodes can be new nodes, nodes that have changed, or nodes
+    // that have been removed (see Invalidation.type).
+    rpc getTimelineInvalidations(Context) returns (stream TimelineInvalidation) {}
+
+    // MESHES
+
+    // Returns whether the given mesh is already available on the server.
+    // Note that only the mesh ID is used.
+    rpc hasMesh(MeshInContext) returns (Bool) {}
+
+    // Returns a 3D mesh.
+    // Note that only the ID of the input mesh is used.
+    rpc getMesh(MeshInContext) returns (Mesh) {}
+
+    // Sends a 3D mesh to the server.
+    rpc pushMesh(MeshInContext) returns (Empty) {}
+}
+
+/////////////////////////////////////////////
+// GENERIC MESSAGES
+
+message Empty {}
+
+message Bool {
+    bool value = 1;
+}
+
+message Time {
+    // Time (in second). Can represent an absolute time (seconds elapsed since
+    // the begining of epoch) or a duration.
+    double time = 1;
+}
+
+message Name {
+    string name = 1;
+}
+
+message Size {
+    int32 size = 1;
+}
+
+// A 3D point with floating point precision
+message Pointf {
+    float x = 1;
+    float y = 2;
+    float z = 3;
+}
+
+// A 3D point with integral coordinates
+message Point {
+    sint32 x = 1;
+    sint32 y = 2;
+    sint32 z = 3;
+}
+
+// A RGBA color, each component is in [0,1]
+message Color {
+    float r = 1;
+    float g = 2;
+    float b = 3;
+    float a = 4;
+}
+
+
+/////////////////////////////////////////////
+// CLIENT-RELATED MESSAGE
+
+message Client {
+    string id = 1;
+    string name = 2;
+    repeated ClientInteraction links = 3;
+}
+
+message ClientInteraction {
+
+    enum InteractionType {
+        READER = 0;
+        PROVIDER = 1;
+        MONITOR = 2;
+        FILTER = 3;
+    }
+
+    string world = 1;
+    InteractionType type = 2;
+    Time last_activity = 3;
+}
+
+message Context {
+    string client = 1;
+    string world = 2;
+}
+
+/////////////////////////////////////////////
+// TOPOLOGY
+
+// Encodes the current topology of Underworlds
+message Topology {
+    repeated string worlds = 1;
+    repeated Client clients = 2;
+}
+
+/////////////////////////////////////////////
+// NODE-RELATED MESSAGES
+
+message Node {
+
+    enum NodeType {
+        UNDEFINED = 0;
+        // Entities are abstract nodes. They can represent non-physical objects
+        // (like a reference frame) or groups of other objects.
+        ENTITY = 1; 
+        // a physical object, with an associated 3D mesh
+        MESH = 2;
+        CAMERA = 3;
+    }
+
+    // an unique ID
+    string id = 1;
+
+    // a human-friendly name
+    string name = 2;
+
+    // the type of node
+    NodeType type = 3;
+
+    string parent = 4; // the parent node ID. Always non-empty, except for the root node
+
+    // the children of this node, if any
+    repeated string children = 5;
+
+    // 4x4 transformation matrix, relative to parent. Translation units are
+    // meters. Stored as a list of 16 32bit float, row-major.
+    repeated float transformation = 6;
+
+    // date/time of the last node's update (in sec since the epoch)
+    double last_update = 8;
+
+    ////// PROPERTIES
+    // Note that most of these properties are only meaningful for certain type of node
+    // Other type should simply ignore them.
+
+    // MESH node properties
+
+    // For nodes of type MESH, the mesh IDs of the low-resolution meshes
+    // representing this object (may be empty)
+    repeated string lowres = 16;
+    // For nodes of type MESH, the mesh IDs of the high-resolution meshes
+    // representing this object (may be empty)
+    repeated string hires = 17;
+    // For nodes of type MESH, the mesh IDs of the CAD models 
+    // representing this object (may be empty)
+    repeated string cad = 18;
+
+    // When meaningful, the axis-aligned bounding-box of the node as 2 points (P1, P2).
+    // The order of the points is not guaranteed.
+    repeated Pointf aabb = 19;
+
+    // if set to true, physics-related computation are expected to be run on this node
+    bool physics = 30;
+
+    // Cameras properties
+    float clipplanenear = 40;
+    float clipplanefar = 41;
+    float aspect = 42;
+    float horizontalfov = 43;
+}
+
+message Nodes {
+    repeated string ids = 1;
+}
+
+message NodeInContext {
+    Context context = 1;
+    Node node = 2;
+}
+
+message NodeInvalidation {
+
+    enum NodeInvalidationType {
+        NEW = 0;
+        UPDATE = 1;
+        DELETE = 2;
+    }
+
+    NodeInvalidationType type = 1;
+
+    // the ID of the node which is being invalidated
+    string id = 2;
+}
+
+/////////////////////////////////////////////
+// TIMELINE-RELATED MESSAGES
+
+
+message Situation {
+
+    enum SituationType {
+        GENERIC = 0;
+        MOTION = 1;
+        EVT_MODELLOAD = 2;
+    }
+
+    string id = 1;
+    SituationType type = 2;
+    string description = 3;
+
+    // start time of the situation. 0 means that the situation has not started yet
+    Time start = 4;
+    // end time of the situation. 0 means that the situation has not finnished yet
+    // For events, start == end
+    Time end = 5;
+}
+
+message SituationInContext {
+    Context context = 1;
+    Situation situation = 2;
+}
+
+message TimelineInvalidation {
+
+    enum TimelineInvalidationType {
+        EVENT = 0;
+        START = 1;
+        END = 2;
+    }
+
+    TimelineInvalidationType type = 1;
+
+    // the ID of the situation which is being invalidated
+    string id = 2;
+}
+
+/////////////////////////////////////////////
+// MESH-RELATED MESSAGES
+
+message Mesh {
+
+    // The mesh ID. Typically computed by hashing the mesh object so that identical
+    // meshes correspond to the same ID, thus allowing data re-use
+    string id = 1;
+    repeated Pointf vertices = 2;
+    // faces must be triangles and are encoded as a tuple of 3 indices in the
+    // vertices array.
+    repeated Point faces = 3;
+    repeated Pointf normals = 4;
+    repeated uint32 colors = 5;
+
+    Color diffuse = 6;
+}
+
+message MeshInContext {
+    Client client = 1;
+    Mesh mesh = 2;
+}
+

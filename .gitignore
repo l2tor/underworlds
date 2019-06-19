@@ -1,0 +1,7 @@
+build*
+*.pyc
+*.pyo
+*~
+doc/.build
+*.blend1
+dna.txt

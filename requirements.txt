@@ -1,0 +1,4 @@
+numpy
+grpcio
+pyassimp
+argcomplete

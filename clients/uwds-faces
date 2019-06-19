@@ -1,0 +1,48 @@
+#!/usr/bin/env python
+#-*- coding: UTF-8 -*-
+
+import underworlds
+from underworlds.helpers import transformations
+from underworlds.types import MESH, Node
+from underworlds.tools.loader import ModelLoader
+
+import logging; logger = logging.getLogger("underworlds.3d_face_loader")
+logging.basicConfig(level=logging.DEBUG)
+
+
+if __name__ == "__main__":
+
+    import argparse
+    parser = argparse.ArgumentParser(description="Underworlds 3D face loader")
+    parser.add_argument("--prefix", default="face", help="Prefix of the node name used to identify a face.")
+    parser.add_argument("world", help="Underworlds world to process")
+    args = parser.parse_args()
+
+
+    with underworlds.Context("3D face loader") as ctx:
+
+        meshes = ModelLoader().load_meshes("../share/face.blend", ctx=ctx)
+        face_mesh = meshes["face"]
+
+
+        scene = ctx.worlds[args.world].scene
+
+        new_nodes = []
+
+        for node in scene.nodes:
+            if node.name.startswith(args.prefix):
+                logger.info("Creating a 3D face node for frame <%s>" % str(node))
+                face = Node()
+                face.type = MESH
+                face.cad = list(face_mesh)
+                face.name = "mesh_" + node.name
+                face.parent = node.id
+                new_nodes.append(face)
+
+        for node in new_nodes:
+            scene.nodes.append(node)
+
+
+
+
+
